@@ -19,6 +19,116 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown(
+    """
+    <style>
+    .pbix-band {
+        background: #0b6a8f;
+        color: #ffffff;
+        text-align: center;
+        font-weight: 800;
+        font-size: 1.05rem;
+        border-radius: 0;
+        padding: 0.55rem 0.8rem;
+        margin: 0.4rem 0 0.8rem 0;
+        letter-spacing: 0.01em;
+    }
+
+    .pbix-legend {
+        color: rgba(255,255,255,0.84);
+        text-align: center;
+        font-size: 0.95rem;
+        margin: 0.15rem 0 1.15rem 0;
+        line-height: 1.35;
+    }
+
+    .pbix-center-page-title {
+        color: #52b7ea;
+        font-size: 1.9rem;
+        font-style: italic;
+        font-weight: 500;
+        margin: 1.1rem 0 0.55rem 0;
+        line-height: 1.1;
+    }
+
+    .mini-band {
+        background: #0b6a8f;
+        color: #ffffff;
+        text-align: center;
+        font-weight: 800;
+        font-size: 0.98rem;
+        padding: 0.45rem 0.8rem;
+        margin: 0.3rem 0 0.85rem 0;
+    }
+
+    .metric-pack-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 0.15rem 0 0.55rem 0;
+        color: #f5f7fb;
+    }
+
+    .metric-pack-scope {
+        color: rgba(255,255,255,0.62);
+        margin-top: 0;
+        margin-bottom: 0.75rem;
+        font-size: 0.90rem;
+        line-height: 1.35;
+    }
+
+    .metric-card {
+        background: linear-gradient(180deg, rgba(22,27,34,0.96), rgba(13,17,23,0.96));
+        border: 1px solid rgba(255,255,255,0.08);
+        border-left: 4px solid var(--accent, #ff4b4b);
+        border-radius: 16px;
+        padding: 16px 18px;
+        min-height: 110px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+        margin-bottom: 12px;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 28px rgba(0,0,0,0.32);
+        transition: 0.18s ease;
+    }
+
+    .metric-label {
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: rgba(255,255,255,0.78);
+        margin-bottom: 10px;
+        line-height: 1.25;
+    }
+
+    .metric-value {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #ffffff;
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+    }
+
+    .section-title {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: #f5f7fb;
+        margin: 1.0rem 0 0.2rem 0;
+        line-height: 1.1;
+    }
+
+    .section-subtitle {
+        color: rgba(255,255,255,0.82);
+        font-size: 0.96rem;
+        margin-bottom: 0.8rem;
+        line-height: 1.35;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 # -------------------------------
 # CONSTANTS
 # -------------------------------
@@ -45,19 +155,19 @@ TIP_ABBR = {
 # -------------------------------
 # SECRETS
 # -------------------------------
-def get_bonsaif_secret(section: str, key: str, default: str = "") -> str:
+def get_secret(section: str, key: str, default: str = "") -> str:
     try:
         return str(st.secrets[section][key]).strip()
     except Exception:
         return default
 
 
-GLOS_API_KEY = get_bonsaif_secret(
+GLOS_API_KEY = get_secret(
     "bonsaif",
     "glos_api_key",
-    get_bonsaif_secret("bonsaif", "api_key")
+    get_secret("bonsaif", "api_key")
 )
-GLOS_SYS = get_bonsaif_secret("bonsaif", "glos_sys", "cc61")
+GLOS_SYS = get_secret("bonsaif", "glos_sys", "cc61")
 
 
 # -------------------------------
@@ -115,6 +225,8 @@ def compute_business_reference_day(today: date) -> date:
     is_jan2 = today.month == 1 and today.day == 2
     is_feb2 = today.month == 2 and today.day == 2
     is_feb3 = today.month == 2 and today.day == 3
+    is_mar16 = today.month == 3 and today.day == 16
+    is_mar17 = today.month == 3 and today.day == 17
 
     if is_dec26:
         return date(today.year, 12, 24)
@@ -124,14 +236,40 @@ def compute_business_reference_day(today: date) -> date:
         return today - timedelta(days=3)
     elif is_feb2:
         return today - timedelta(days=1)
+    elif is_mar16:
+        return today - timedelta(days=2)
+    elif is_mar17:
+        return today - timedelta(days=3)
     elif ayer1.weekday() == 6:
         return today - timedelta(days=2)
     else:
         return ayer1
 
 
+def clean_name(t):
+    if pd.isna(t):
+        return None
+
+    s = str(t).strip().upper()
+    s = (
+        s.replace("Á", "A")
+         .replace("É", "E")
+         .replace("Í", "I")
+         .replace("Ó", "O")
+         .replace("Ú", "U")
+         .replace("Ñ", "N")
+         .replace(".", " ")
+         .replace(",", " ")
+         .replace("/", " ")
+         .replace("-", " ")
+    )
+    s = " ".join([p for p in s.split(" ") if p != ""])
+    return s
+
+
 def build_detail_rename_map(team_col: str, agent_col: str) -> dict:
     rename_map = {
+        "Sistema": "Sistema",
         team_col: "Equipo",
         agent_col: "Agente",
         "Tipificacion_3": "Tipificación general",
@@ -148,11 +286,10 @@ def build_detail_rename_map(team_col: str, agent_col: str) -> dict:
         "Campo_Clave": "Campo clave",
         "Grabacion_CC": "Grabación",
         "Fecha_CC": "Fecha",
-        "Sistema": "Sistema",
     }
 
     if team_col != "Calificacion_Int_CC":
-        rename_map["Calificacion_Int_CC"] = "Equipo interno"
+        rename_map["Calificacion_Int_CC"] = "Equipo original"
 
     if agent_col != "Extension_CC":
         rename_map["Extension_CC"] = "Extensión"
@@ -161,10 +298,20 @@ def build_detail_rename_map(team_col: str, agent_col: str) -> dict:
 
 
 # -------------------------------
-# POWER BI / GLOS EXACT-LIKE BASE
+# API FETCHERS
 # -------------------------------
-def fetch_glos_raw(pdate: date, api_key: str, sys_code: str) -> pd.DataFrame:
-    base_cols = [
+def fetch_api_records(params: dict) -> list[dict]:
+    response = requests.get(API_URL, params=params, timeout=45)
+    response.raise_for_status()
+    payload = response.json()
+    result = payload.get("result", [])
+    if isinstance(result, list):
+        return result
+    return []
+
+
+def normalize_api_df(records: list[dict]) -> pd.DataFrame:
+    cols = [
         "ID_CC", "Campaña_CC", "Cliente_CC", "Tel_Marcado_CC", "Carrier_CC", "Tipo_Tel_CC",
         "Duracion_CC", "Duracion_Min_CC", "Estatus_CC", "Codigo_Accion_CC", "Codigo_Resultado_CC",
         "Fecha_CC", "Codigo_sip_CC", "Descripcion_sip_CC", "Grabacion_CC", "Extension_CC", "Gestor_CC",
@@ -172,86 +319,95 @@ def fetch_glos_raw(pdate: date, api_key: str, sys_code: str) -> pd.DataFrame:
         "Calificacion_Int_CC", "Clave_int_cli"
     ]
 
-    if not api_key or not sys_code:
+    if not records:
+        return pd.DataFrame(columns=cols)
+
+    df = pd.DataFrame(records)
+    for c in cols:
+        if c not in df.columns:
+            df[c] = np.nan
+
+    df = df[cols].copy()
+
+    text_cols = [
+        "Campaña_CC", "Cliente_CC", "Tel_Marcado_CC", "Carrier_CC", "Tipo_Tel_CC",
+        "Estatus_CC", "Codigo_Accion_CC", "Codigo_Resultado_CC", "Codigo_sip_CC",
+        "Descripcion_sip_CC", "Grabacion_CC", "Extension_CC", "Gestor_CC",
+        "Obs_CC", "Colgo_Agente_CC", "Salida_CC", "Calificacion_Int_CC", "Clave_int_cli"
+    ]
+    num_cols = ["ID_CC", "Duracion_CC", "Duracion_Min_CC", "Origen_CC", "Campo_Clave", "acw"]
+
+    for c in text_cols:
+        df[c] = df[c].astype("string")
+
+    for c in num_cols:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    df["Fecha_CC"] = pd.to_datetime(df["Fecha_CC"], errors="coerce")
+
+    nuevo = df["Clave_int_cli"].fillna("").astype(str).str.strip()
+    viejo = df["Calificacion_Int_CC"].fillna("").astype(str).str.strip()
+
+    df["Calificacion_Int_CC"] = np.where(
+        nuevo != "",
+        nuevo,
+        np.where(viejo != "", viejo, np.nan)
+    )
+
+    df = df.drop(columns=["Clave_int_cli"])
+    df["Sistema"] = "GLOS"
+
+    return ensure_columns(df, TARGET_COLS)
+
+
+def fetch_glos_raw(pdate: date) -> pd.DataFrame:
+    if not GLOS_API_KEY or not GLOS_SYS:
         return pd.DataFrame(columns=TARGET_COLS)
 
     pdate_text = pdate.strftime("%Y-%m-%d")
 
+    params_primary = {
+        "service": "cc/api",
+        "m": "27",
+        "key": GLOS_API_KEY,
+        "sys": GLOS_SYS,
+        "fecha_ini": pdate_text,
+        "fecha_fin": pdate_text,
+    }
+
+    params_fallback = {
+        "service": "cc/api",
+        "m": "27",
+        "key": GLOS_API_KEY,
+        "sys": GLOS_SYS,
+        "fechaini": pdate_text,
+        "fechafin": pdate_text,
+    }
+
     for attempt in range(3):
         try:
-            response = requests.get(
-                API_URL,
-                params={
-                    "service": "cc/api",
-                    "m": "27",
-                    "key": api_key,
-                    "sys": sys_code,
-                    "fecha_ini": pdate_text,
-                    "fecha_fin": pdate_text,
-                },
-                timeout=45,
-            )
-            response.raise_for_status()
-            payload = response.json()
-
-            records = payload.get("result", [])
-            if not isinstance(records, list) or len(records) == 0:
-                pytime.sleep(1 + attempt)
-                continue
-
-            df = pd.DataFrame(records)
-
-            for c in base_cols:
-                if c not in df.columns:
-                    df[c] = np.nan
-
-            df = df[base_cols].copy()
-
-            text_cols = [
-                "Campaña_CC", "Cliente_CC", "Tel_Marcado_CC", "Carrier_CC", "Tipo_Tel_CC",
-                "Estatus_CC", "Codigo_Accion_CC", "Codigo_Resultado_CC", "Codigo_sip_CC",
-                "Descripcion_sip_CC", "Grabacion_CC", "Extension_CC", "Gestor_CC",
-                "Obs_CC", "Colgo_Agente_CC", "Salida_CC", "Calificacion_Int_CC", "Clave_int_cli"
-            ]
-            num_cols = ["ID_CC", "Duracion_CC", "Duracion_Min_CC", "Origen_CC", "Campo_Clave", "acw"]
-
-            for c in text_cols:
-                df[c] = df[c].astype("string")
-
-            for c in num_cols:
-                df[c] = pd.to_numeric(df[c], errors="coerce")
-
-            df["Fecha_CC"] = pd.to_datetime(df["Fecha_CC"], errors="coerce")
-
-            nuevo = df["Clave_int_cli"].fillna("").astype(str).str.strip()
-            viejo = df["Calificacion_Int_CC"].fillna("").astype(str).str.strip()
-
-            df["Calificacion_Int_CC"] = np.where(
-                nuevo != "",
-                nuevo,
-                np.where(viejo != "", viejo, np.nan)
-            )
-
-            df = df.drop(columns=["Clave_int_cli"])
-            df["Sistema"] = "GLOS"
-
-            return ensure_columns(df, TARGET_COLS)
-
+            records = fetch_api_records(params_primary)
+            if not records:
+                records = fetch_api_records(params_fallback)
+            return normalize_api_df(records)
         except Exception:
             pytime.sleep(1 + attempt)
 
     return pd.DataFrame(columns=TARGET_COLS)
 
 
-def dedupe_glos_like_powerbi(df: pd.DataFrame, overwrite_fecha: datetime | None = None) -> pd.DataFrame:
-    if df.empty:
-        return df.copy()
+# -------------------------------
+# SOURCE PREP / EXACT LOGIC
+# -------------------------------
+def build_glos_exact(raw_df: pd.DataFrame, overwrite_fecha: datetime | None = None) -> pd.DataFrame:
+    if raw_df.empty:
+        return raw_df.copy()
 
-    out = df.copy()
+    out = raw_df.copy()
 
-    out["Estatus_CC"] = out["Estatus_CC"].fillna("").astype(str).str.strip()
-    out["Estatus_CC"] = np.where(out["Estatus_CC"] == "", "SIN CALIFICACION", out["Estatus_CC"])
-    out["Estatus_CC"] = out["Estatus_CC"].str.upper()
+    out["Estatus_CC"] = out["Estatus_CC"].apply(
+        lambda x: "SIN CALIFICACION" if str(x).strip() == "" or pd.isna(x) else x
+    )
 
     if overwrite_fecha is not None:
         out["Fecha_CC"] = pd.Timestamp(overwrite_fecha.replace(tzinfo=None))
@@ -267,7 +423,7 @@ def dedupe_glos_like_powerbi(df: pd.DataFrame, overwrite_fecha: datetime | None 
     out = out.drop_duplicates(subset=["Tel_Marcado_CC"], keep="first").copy()
     out = out.drop(columns=["_row_order"])
 
-    out["Tipificacion_Detalle"] = out["Estatus_CC"]
+    out["Tipificacion_Detalle"] = out["Estatus_CC"].apply(normalize_status)
     out["Tipificacion_3"] = out["Estatus_CC"].apply(status_group_3)
     out["Tipificacion_3_Abbr"] = out["Tipificacion_3"].map(TIP_ABBR).fillna("OTR")
 
@@ -278,47 +434,61 @@ def dedupe_glos_like_powerbi(df: pd.DataFrame, overwrite_fecha: datetime | None 
     return out.reset_index(drop=True)
 
 
+def apply_powerbi_glos_page_scope(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df.copy()
+
+    out = df.copy()
+
+    # Misma estructura lógica que CC2/JV:
+    # un bloque para portada y un bloque para la página específica.
+    # En GLOS, al ser una sola operación, la página específica usa el
+    # universo consolidado de GLOS ya normalizado.
+    return out
+
+
 @st.cache_data(ttl=60, show_spinner=False)
-def get_glos_yesterday(api_key: str, sys_code: str) -> tuple[pd.DataFrame, date]:
+def get_consolidado_ayer() -> tuple[pd.DataFrame, date]:
     hoy = mexico_now().date()
 
     dia_vencido = compute_business_reference_day(hoy)
     target = compute_business_reference_day(dia_vencido)
 
-    raw0 = fetch_glos_raw(target, api_key, sys_code)
+    raw0 = fetch_glos_raw(target)
     if raw0.empty:
         alt = compute_business_reference_day(target)
-        raw0 = fetch_glos_raw(alt, api_key, sys_code)
+        raw0 = fetch_glos_raw(alt)
         target = alt
 
-    return dedupe_glos_like_powerbi(raw0), target
+    combined = build_glos_exact(raw0)
+    return combined, target
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_glos_today_visual(api_key: str, sys_code: str) -> tuple[pd.DataFrame, date]:
+def get_consolidado_hoy() -> tuple[pd.DataFrame, date]:
     now_cdmx = mexico_now()
     hoy = now_cdmx.date()
 
     day_vencido = compute_business_reference_day(hoy)
-    raw = fetch_glos_raw(day_vencido, api_key, sys_code)
+    raw = fetch_glos_raw(day_vencido)
 
     if raw.empty:
         alt = day_vencido - timedelta(days=1)
-        raw = fetch_glos_raw(alt, api_key, sys_code)
+        raw = fetch_glos_raw(alt)
         day_vencido = alt
 
-    out = dedupe_glos_like_powerbi(raw, overwrite_fecha=now_cdmx)
-    return out, day_vencido
+    combined = build_glos_exact(raw, overwrite_fecha=now_cdmx)
+    return combined, day_vencido
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_glos_exact_day(pdate: date, api_key: str, sys_code: str) -> pd.DataFrame:
-    raw = fetch_glos_raw(pdate, api_key, sys_code)
-    return dedupe_glos_like_powerbi(raw)
+def get_consolidado_exact_day(pdate: date) -> pd.DataFrame:
+    raw = fetch_glos_raw(pdate)
+    return build_glos_exact(raw)
 
 
 # -------------------------------
-# EXTRA KPI HELPERS
+# KPI HELPERS
 # -------------------------------
 def avg_active_seconds_by_tip(df: pd.DataFrame, tip: str) -> float:
     if df.empty or "Duracion_CC" not in df.columns:
@@ -371,6 +541,134 @@ def calc_awc(df: pd.DataFrame) -> int:
     return int(round(s.mean()))
 
 
+def compute_metric_pack(df: pd.DataFrame) -> dict:
+    return {
+        "Contacto (avg sec)": avg_active_seconds_by_tip(df, "CONTACTO"),
+        "Improcedente (avg sec)": avg_active_seconds_by_tip(df, "IMPROCEDENTE"),
+        "No contactado (avg sec)": avg_active_seconds_by_tip(df, "NO CONTACTADO"),
+        "% Colgó Agente": calc_agent_hangup_pct(df),
+        "Bloqueo de Discard": calc_discard_block_count(df),
+        "AWC": calc_awc(df),
+    }
+
+
+def fmt_metric_value(label: str, value) -> str:
+    if "%" in label:
+        return f"{float(value):.0f}%"
+
+    if (
+        "Bloqueo" in label
+        or label == "AWC"
+        or "Registros" in label
+        or "Total" in label
+        or "Otros" in label
+    ):
+        try:
+            return f"{int(round(float(value))):,}"
+        except Exception:
+            return str(value)
+
+    try:
+        return f"{float(value):,.1f}"
+    except Exception:
+        return str(value)
+
+
+def render_pbix_band(title: str):
+    st.markdown(f'<div class="pbix-band">{title}</div>', unsafe_allow_html=True)
+
+
+def render_pbix_legend():
+    st.markdown(
+        '<div class="pbix-legend">CTO = CONTACTO &nbsp;&nbsp;&nbsp; IMP = IMPROCEDENTE &nbsp;&nbsp;&nbsp; NCT = NO CONTACTADO &nbsp;&nbsp;&nbsp; AWC = TIEMPO P/ TIPIFICAR</div>',
+        unsafe_allow_html=True
+    )
+
+
+def render_center_page_title(title: str):
+    st.markdown(f'<div class="pbix-center-page-title">{title}</div>', unsafe_allow_html=True)
+
+
+def render_metric_card(label: str, value, accent: str = "#ff4b4b", display_label: str | None = None):
+    label_show = display_label if display_label is not None else label
+
+    st.markdown(
+        f"""
+        <div class="metric-card" style="--accent:{accent}">
+            <div class="metric-label">{label_show}</div>
+            <div class="metric-value">{fmt_metric_value(label, value)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_metric_pack(
+    title: str,
+    pack: dict,
+    accent: str = "#ff4b4b",
+    subtitle: str = "",
+    row1_header: str = "",
+    row2_header: str = ""
+):
+    st.markdown(f'<div class="metric-pack-title">{title}</div>', unsafe_allow_html=True)
+
+    if subtitle:
+        st.markdown(f'<div class="metric-pack-scope">{subtitle}</div>', unsafe_allow_html=True)
+
+    if row1_header:
+        st.markdown(f'<div class="mini-band">{row1_header}</div>', unsafe_allow_html=True)
+
+    row1 = st.columns(3)
+    with row1[0]:
+        render_metric_card(
+            "Contacto (avg sec)",
+            pack["Contacto (avg sec)"],
+            accent,
+            "Tiempo Promedio de Segundos<br>Activos<br>Contacto"
+        )
+    with row1[1]:
+        render_metric_card(
+            "Improcedente (avg sec)",
+            pack["Improcedente (avg sec)"],
+            accent,
+            "Tiempo Promedio de Segundos<br>Activos<br>Improcedente"
+        )
+    with row1[2]:
+        render_metric_card(
+            "No contactado (avg sec)",
+            pack["No contactado (avg sec)"],
+            accent,
+            "Tiempo Promedio de Segundos<br>Activos<br>No contactado"
+        )
+
+    if row2_header:
+        st.markdown(f'<div class="mini-band">{row2_header}</div>', unsafe_allow_html=True)
+
+    row2 = st.columns(3)
+    with row2[0]:
+        render_metric_card(
+            "% Colgó Agente",
+            pack["% Colgó Agente"],
+            accent,
+            "Colgó Agente<br>En porcentaje"
+        )
+    with row2[1]:
+        render_metric_card(
+            "Bloqueo de Discard",
+            pack["Bloqueo de Discard"],
+            accent,
+            "Bloqueo de Discard<br>No. de llamadas"
+        )
+    with row2[2]:
+        render_metric_card(
+            "AWC",
+            pack["AWC"],
+            accent,
+            "AWC<br>Segundos"
+        )
+
+
 # -------------------------------
 # SUMMARY / EXPORT HELPERS
 # -------------------------------
@@ -391,29 +689,74 @@ def build_summary(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
 
 
 def build_team_agent_summary(df: pd.DataFrame, tip_col: str, team_col: str, agent_col: str):
-    work = df.copy()
+    work_local = df.copy()
 
-    if team_col not in work.columns:
-        work[team_col] = "Sin equipo"
-    if agent_col not in work.columns:
-        work[agent_col] = "Sin agente"
+    if team_col not in work_local.columns:
+        work_local[team_col] = "Sin equipo"
+    if agent_col not in work_local.columns:
+        work_local[agent_col] = "Sin agente"
 
-    work[team_col] = work[team_col].replace("", np.nan).fillna("Sin equipo")
-    work[agent_col] = work[agent_col].replace("", np.nan).fillna("Sin agente")
+    work_local[team_col] = work_local[team_col].replace("", np.nan).fillna("Sin equipo")
+    work_local[agent_col] = work_local[agent_col].replace("", np.nan).fillna("Sin agente")
 
     team = (
-        work.groupby([team_col, tip_col], dropna=False)
+        work_local.groupby([team_col, tip_col], dropna=False)
         .size()
         .reset_index(name="Registros")
     )
 
     agent = (
-        work.groupby([agent_col, tip_col], dropna=False)
+        work_local.groupby([agent_col, tip_col], dropna=False)
         .size()
         .reset_index(name="Registros")
     )
 
     return team, agent
+
+
+def build_pbix_agent_table(df: pd.DataFrame, team_col: str, agent_col: str) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=[
+            team_col, agent_col,
+            "Duración Promedio Contacto", "Total Contacto",
+            "Duración Promedio Improcedente", "Total Improcedente",
+            "Duración Promedio No Contactado", "Total No Contactado",
+            "AWC"
+        ])
+
+    work_local = df.copy()
+    work_local["Duracion_CC"] = pd.to_numeric(work_local["Duracion_CC"], errors="coerce")
+    work_local["acw"] = pd.to_numeric(work_local["acw"], errors="coerce")
+    work_local["Estatus_CC"] = work_local["Estatus_CC"].fillna("").astype(str).str.strip().str.upper()
+
+    rows = []
+    for (equipo, agente), g in work_local.groupby([team_col, agent_col], dropna=False):
+        g_cto = g[g["Estatus_CC"] == "CONTACTO"]
+        g_imp = g[g["Estatus_CC"] == "IMPROCEDENTE"]
+        g_nct = g[g["Estatus_CC"] == "NO CONTACTADO"]
+
+        cto_secs = g_cto["Duracion_CC"].dropna()
+        imp_secs = g_imp["Duracion_CC"].dropna()
+        nct_secs = g_nct["Duracion_CC"].dropna()
+        awc_vals = g["acw"].dropna()
+
+        cto_secs = cto_secs[cto_secs > 0]
+        imp_secs = imp_secs[imp_secs > 0]
+        nct_secs = nct_secs[nct_secs > 0]
+
+        rows.append({
+            team_col: equipo,
+            agent_col: agente,
+            "Duración Promedio Contacto": float(cto_secs.mean()) if not cto_secs.empty else 0.0,
+            "Total Contacto": int(len(g_cto)),
+            "Duración Promedio Improcedente": float(imp_secs.mean()) if not imp_secs.empty else 0.0,
+            "Total Improcedente": int(len(g_imp)),
+            "Duración Promedio No Contactado": float(nct_secs.mean()) if not nct_secs.empty else 0.0,
+            "Total No Contactado": int(len(g_nct)),
+            "AWC": float(awc_vals.mean()) if not awc_vals.empty else 0.0,
+        })
+
+    return pd.DataFrame(rows).sort_values([team_col, agent_col]).reset_index(drop=True)
 
 
 def make_excel(
@@ -439,7 +782,7 @@ with st.sidebar:
     st.subheader("Conexión GLOS")
 
     if not GLOS_API_KEY or not GLOS_SYS:
-        st.error("Faltan credenciales GLOS en .streamlit/secrets.toml")
+        st.error("Faltan credenciales API en .streamlit/secrets.toml")
 
     if st.button("Recargar datos ahora"):
         st.cache_data.clear()
@@ -468,31 +811,31 @@ with st.sidebar:
 # VALIDATION
 # -------------------------------
 if not GLOS_API_KEY or not GLOS_SYS:
-    st.title("Dashboard interactivo de tipificación - GLOS")
-    st.warning("Agrega tus credenciales en `.streamlit/secrets.toml` para cargar la información.")
+    st.title("Tipificaciones de Contacto - GLOS")
+    st.warning("Agrega tus credenciales API en `.streamlit/secrets.toml`.")
     st.stop()
 
 
 # -------------------------------
 # TITLE
 # -------------------------------
-st.title("Tipificación - GLOS")
-st.caption("Desglose diario por tipificación con detalle por equipo y por agente.")
+st.title("Tipificaciones de Contacto - GLOS")
+st.caption("Resumen general y desglose de la operación GLOS.")
 
 
 # -------------------------------
 # LOAD DATA
 # -------------------------------
 if view_mode == "Hoy":
-    df, source_date = get_glos_today_visual(GLOS_API_KEY, GLOS_SYS)
+    df, source_date = get_consolidado_hoy()
     visual_label = f"Hoy ({mexico_now().strftime('%Y-%m-%d %H:%M:%S')})"
-    source_label = f"Datos base del día hábil: {source_date}"
+    source_label = f"Datos reales de: {source_date}"
 elif view_mode == "Día hábil anterior":
-    df, source_date = get_glos_yesterday(GLOS_API_KEY, GLOS_SYS)
+    df, source_date = get_consolidado_ayer()
     visual_label = f"Día hábil anterior ({source_date})"
     source_label = f"Datos reales de: {source_date}"
 else:
-    df = get_glos_exact_day(selected_date, GLOS_API_KEY, GLOS_SYS)
+    df = get_consolidado_exact_day(selected_date)
     source_date = selected_date
     visual_label = f"Fecha elegida ({selected_date})"
     source_label = f"Datos reales de: {source_date}"
@@ -553,8 +896,6 @@ if selected_agents:
 else:
     work = work.iloc[0:0].copy()
 
-work_kpi = work.copy()
-
 if selected_tip:
     work = work[work[tip_col].isin(selected_tip)].copy()
 else:
@@ -566,75 +907,51 @@ if work.empty:
 
 TEAM_LABEL = "Equipo"
 AGENT_LABEL = "Agente"
+chart_work = work.copy()
 
 
 # -------------------------------
 # KPIS
 # -------------------------------
-total_reg = len(work)
+page1_base = df.copy()
+page1_glos_pack = compute_metric_pack(page1_base)
 
-contactos_vis = int((work["Tipificacion_3"] == "CONTACTO").sum())
-improcedentes_vis = int((work["Tipificacion_3"] == "IMPROCEDENTE").sum())
-no_contactados_vis = int((work["Tipificacion_3"] == "NO CONTACTADO").sum())
-otros_vis = int((work["Tipificacion_3"] == "OTROS / SIN CALIFICACION").sum())
-
-avg_contacto = avg_active_seconds_by_tip(work_kpi, "CONTACTO")
-avg_improcedente = avg_active_seconds_by_tip(work_kpi, "IMPROCEDENTE")
-avg_no_contactado = avg_active_seconds_by_tip(work_kpi, "NO CONTACTADO")
-
-agent_hangup_pct = calc_agent_hangup_pct(work_kpi)
-discard_block_count = calc_discard_block_count(work)
-awc_value = calc_awc(work_kpi)
-
-
-c1, c2, c3, c4, c5 = st.columns(5)
-
-with c1:
-    st.metric("Registros", f"{total_reg:,}")
-
-with c2:
-    st.metric("Contacto (avg sec)", f"{avg_contacto:,.1f}")
-
-
-with c3:
-    st.metric("Improcedente (avg sec)", f"{avg_improcedente:,.1f}")
-
-
-with c4:
-    st.metric("No contactado (avg sec)", f"{avg_no_contactado:,.1f}")
-
-
-with c5:
-    st.metric("Otros / sin calificación", f"{otros_vis:,}")
-
+page2_base = apply_powerbi_glos_page_scope(df.copy())
+page2_glos_pack = compute_metric_pack(page2_base)
 
 st.caption(f"Vista: {visual_label} | {source_label}")
+st.caption(f"Al corte del {mexico_now().strftime('%m/%d/%Y %I:%M:%S %p')}")
 
-k1, k2, k3 = st.columns(3)
+render_pbix_band("MÉTRICAS GLOBALES")
+render_pbix_legend()
 
-with k1:
-    st.metric("% Colgó Agente", f"{agent_hangup_pct:.0f}%")
+render_metric_pack(
+    "GLOS",
+    page1_glos_pack,
+    accent="#52b7ea"
+)
 
-
-with k2:
-    st.metric("Bloqueo de Discard", f"{discard_block_count:,}")
-
-
-with k3:
-    st.metric("AWC", f"{awc_value:,}")
-
+render_center_page_title("GLOS")
+render_metric_pack(
+    "Indicadores de la operación",
+    page2_glos_pack,
+    accent="#52b7ea",
+    row1_header="Tiempo Promedio de Segundos Activos",
+    row2_header="% Colgó Agente / Bloqueo de Discard / AWC"
+)
 
 
 # -------------------------------
 # SUMMARIES
 # -------------------------------
-summary_tip = build_summary(work, tip_col)
+summary_tip = build_summary(chart_work, tip_col)
 
 if tip_col == "Tipificacion_3":
-    summary_tip["OrdenTmp"] = summary_tip[tip_col].map({k: i for i, k in enumerate(TIP_ORDER_3)}).fillna(999)
+    order_map = {k: i for i, k in enumerate(TIP_ORDER_3)}
+    summary_tip["OrdenTmp"] = summary_tip[tip_col].map(order_map).fillna(999)
     summary_tip = summary_tip.sort_values(["OrdenTmp", "Registros"], ascending=[True, False]).drop(columns="OrdenTmp")
 
-team_summary_long, agent_summary_long = build_team_agent_summary(work, tip_col, team_col, agent_col)
+team_summary_long, agent_summary_long = build_team_agent_summary(chart_work, tip_col, team_col, agent_col)
 
 team_pivot = (
     team_summary_long.pivot(index=team_col, columns=tip_col, values="Registros")
@@ -642,16 +959,15 @@ team_pivot = (
     .reset_index()
 )
 
-agent_pivot = (
-    agent_summary_long.pivot(index=agent_col, columns=tip_col, values="Registros")
-    .fillna(0)
-    .reset_index()
-)
+agent_pivot = build_pbix_agent_table(work, team_col, agent_col)
 
 
 # -------------------------------
 # CHARTS
 # -------------------------------
+st.markdown('<div class="section-title">Desglose por tipificación</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-subtitle">Distribución de registros en la vista consultada.</div>', unsafe_allow_html=True)
+
 left, right = st.columns([0.95, 1.05])
 
 with left:
@@ -660,7 +976,7 @@ with left:
         x=tip_col,
         y="Registros",
         text="Registros",
-        title="Desglose por tipificación",
+        title="Registros por tipificación",
     )
     fig_tip.update_traces(textposition="outside")
     fig_tip.update_layout(
@@ -677,12 +993,13 @@ with right:
         names=tip_col,
         values="Registros",
         hole=0.55,
-        title="Participación por tipificación",
+        title="Participación porcentual por tipificación",
     )
     fig_donut.update_traces(textinfo="percent+label")
     st.plotly_chart(fig_donut, use_container_width=True)
 
-st.markdown("### Desglose por equipo")
+st.markdown('<div class="section-title">Desglose por equipo</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-subtitle">Volumen de registros por equipo y tipificación.</div>', unsafe_allow_html=True)
 
 team_chart_df = team_summary_long.sort_values(
     [team_col, "Registros"],
@@ -697,7 +1014,7 @@ fig_team = px.bar(
     y="Registros",
     color=tip_col,
     text="Label",
-    title="Tipificación por equipo",
+    title="Volumen de registros por equipo",
     barmode="stack",
 )
 
@@ -717,24 +1034,13 @@ fig_team.update_layout(
 
 st.plotly_chart(fig_team, use_container_width=True)
 
-st.markdown("### Desglose por agente")
+st.markdown('<div class="section-title">Desglose por agente</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-subtitle">Volumen de registros por agente y tipificación.</div>', unsafe_allow_html=True)
 
-top_agents = (
-    work.groupby(agent_col)
-    .size()
-    .sort_values(ascending=False)
-    .head(25)
-    .index.tolist()
-)
-
-agent_chart_df = agent_summary_long[
-    agent_summary_long[agent_col].isin(top_agents)
-].copy()
-
-agent_chart_df = agent_chart_df.sort_values(
+agent_chart_df = agent_summary_long.sort_values(
     [agent_col, "Registros"],
     ascending=[True, False]
-)
+).copy()
 
 agent_chart_df["Label"] = np.where(
     agent_chart_df["Registros"] >= 15,
@@ -748,7 +1054,7 @@ fig_agent = px.bar(
     y="Registros",
     color=tip_col,
     text="Label",
-    title="Top agentes por volumen",
+    title="Volumen de registros por agente",
     barmode="stack",
 )
 
@@ -773,10 +1079,10 @@ st.plotly_chart(fig_agent, use_container_width=True)
 # TABLES
 # -------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
-    "Resumen general",
-    "Por equipo",
-    "Por agente",
-    "Detalle de registros"
+    "Resumen por tipificación",
+    "Concentrado por equipo",
+    "Concentrado por agente",
+    "Detalle de llamadas"
 ])
 
 with tab1:
@@ -790,7 +1096,10 @@ with tab2:
     st.dataframe(team_show, use_container_width=True, hide_index=True)
 
 with tab3:
-    agent_show = agent_pivot.copy().rename(columns={agent_col: AGENT_LABEL})
+    agent_show = agent_pivot.copy().rename(columns={
+        team_col: TEAM_LABEL,
+        agent_col: AGENT_LABEL
+    })
     st.dataframe(agent_show, use_container_width=True, hide_index=True)
 
 with tab4:
@@ -818,7 +1127,10 @@ excel_detail = excel_detail.rename(columns=build_detail_rename_map(team_col, age
 
 excel_summary_tip = summary_tip.copy().rename(columns={tip_col: "Tipificación"})
 excel_team = team_pivot.copy().rename(columns={team_col: TEAM_LABEL})
-excel_agent = agent_pivot.copy().rename(columns={agent_col: AGENT_LABEL})
+excel_agent = agent_pivot.copy().rename(columns={
+    team_col: TEAM_LABEL,
+    agent_col: AGENT_LABEL
+})
 
 excel_bytes = make_excel(
     detail_df=excel_detail,
