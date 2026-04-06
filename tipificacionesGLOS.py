@@ -227,6 +227,7 @@ def compute_business_reference_day(today: date) -> date:
     is_feb3 = today.month == 2 and today.day == 3
     is_mar16 = today.month == 3 and today.day == 16
     is_mar17 = today.month == 3 and today.day == 17
+    is_apr6_2026 = today == date(2026, 4, 6)
 
     if is_dec26:
         return date(today.year, 12, 24)
@@ -240,11 +241,12 @@ def compute_business_reference_day(today: date) -> date:
         return today - timedelta(days=2)
     elif is_mar17:
         return today - timedelta(days=3)
+    elif is_apr6_2026:
+        return date(2026, 4, 2)
     elif ayer1.weekday() == 6:
         return today - timedelta(days=2)
     else:
         return ayer1
-
 
 def clean_name(t):
     if pd.isna(t):
